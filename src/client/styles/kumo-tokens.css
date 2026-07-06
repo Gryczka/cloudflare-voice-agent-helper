@@ -1,0 +1,146 @@
+@import "tailwindcss";
+
+/*
+ * Kumo design tokens — Cloudflare Workers design system.
+ *
+ * Light mode is the default (:root). Dark mode is activated by adding the
+ * `.dark` class to <html> (managed by the theme-toggle script in index.html
+ * and the toggle button in App.tsx).
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --kumo-canvas: #ffffff;
+  --kumo-elevated: #fafafa;
+  --kumo-recessed: #f5f5f5;
+
+  /* Text */
+  --kumo-text: #262626;
+  --kumo-text-muted: #666666;
+  --kumo-text-subtle: #808080;
+  --kumo-text-inverse: #ffffff;
+
+  /* Brand accent */
+  --kumo-accent: #ff5e1f;
+  --kumo-accent-hover: #ff7038;
+  --kumo-accent-tint: rgba(255, 94, 31, 0.08);
+  --kumo-accent-contrast: #ffffff;
+
+  /* AI accent */
+  --kumo-accent-ai: #00bd7d;
+  --kumo-accent-ai-tint: rgba(0, 189, 125, 0.08);
+
+  /* Lines & borders */
+  --kumo-line: rgba(23, 23, 23, 0.1);
+  --kumo-line-hover: rgba(23, 23, 23, 0.18);
+
+  /* Semantic colors */
+  --kumo-info: #0ea5e9;
+  --kumo-info-tint: #e0f2fe;
+  --kumo-success: #22c55e;
+  --kumo-success-tint: #dcfce7;
+  --kumo-warning: #f59e0b;
+  --kumo-warning-tint: #fef3c7;
+  --kumo-danger: #ef4444;
+  --kumo-danger-tint: #fee2e2;
+
+  /* Radii */
+  --kumo-radius-sm: 6px;
+  --kumo-radius-md: 10px;
+  --kumo-radius-card: 16px;
+  --kumo-radius-pill: 9999px;
+
+  /* Shadow stack */
+  --kumo-shadow-sm: 0 1px 2px rgba(23, 23, 23, 0.04);
+  --kumo-shadow-card:
+    0 1px 2px rgba(23, 23, 23, 0.04), 0 4px 12px rgba(23, 23, 23, 0.05);
+
+  /* Fonts */
+  --kumo-font-sans:
+    "FT Kunst Grotesk", system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
+  --kumo-font-mono:
+    "Apercu Mono Pro", ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono",
+    Menlo, monospace;
+}
+
+:root.dark {
+  color-scheme: dark;
+
+  --kumo-canvas: #0f0f0f;
+  --kumo-elevated: #171717;
+  --kumo-recessed: #1c1c1c;
+
+  --kumo-text: #f0e3de;
+  --kumo-text-muted: #a3a3a3;
+  --kumo-text-subtle: #737373;
+  --kumo-text-inverse: #0f0f0f;
+
+  --kumo-accent: #ff6a2c;
+  --kumo-accent-hover: #ff8147;
+  --kumo-accent-tint: rgba(255, 106, 44, 0.12);
+  --kumo-accent-contrast: #ffffff;
+
+  --kumo-accent-ai: #00d494;
+  --kumo-accent-ai-tint: rgba(0, 212, 148, 0.1);
+
+  --kumo-line: rgba(240, 227, 222, 0.13);
+  --kumo-line-hover: rgba(240, 227, 222, 0.22);
+
+  --kumo-info: #38bdf8;
+  --kumo-info-tint: rgba(56, 189, 248, 0.1);
+  --kumo-success: #4ade80;
+  --kumo-success-tint: rgba(74, 222, 128, 0.1);
+  --kumo-warning: #fbbf24;
+  --kumo-warning-tint: rgba(251, 191, 36, 0.1);
+  --kumo-danger: #f87171;
+  --kumo-danger-tint: rgba(248, 113, 113, 0.1);
+
+  --kumo-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --kumo-shadow-card:
+    0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+/*
+ * Tailwind @theme mapping — exposes tokens as utility classes:
+ *   bg-kumo-canvas, text-kumo-text, border-kumo-line, rounded-kumo-card, etc.
+ */
+@theme {
+  --color-kumo-canvas: var(--kumo-canvas);
+  --color-kumo-elevated: var(--kumo-elevated);
+  --color-kumo-recessed: var(--kumo-recessed);
+
+  --color-kumo-text: var(--kumo-text);
+  --color-kumo-text-muted: var(--kumo-text-muted);
+  --color-kumo-text-subtle: var(--kumo-text-subtle);
+  --color-kumo-text-inverse: var(--kumo-text-inverse);
+
+  --color-kumo-accent: var(--kumo-accent);
+  --color-kumo-accent-hover: var(--kumo-accent-hover);
+  --color-kumo-accent-tint: var(--kumo-accent-tint);
+  --color-kumo-accent-contrast: var(--kumo-accent-contrast);
+  --color-kumo-accent-ai: var(--kumo-accent-ai);
+  --color-kumo-accent-ai-tint: var(--kumo-accent-ai-tint);
+
+  --color-kumo-line: var(--kumo-line);
+  --color-kumo-line-hover: var(--kumo-line-hover);
+
+  --color-kumo-info: var(--kumo-info);
+  --color-kumo-info-tint: var(--kumo-info-tint);
+  --color-kumo-success: var(--kumo-success);
+  --color-kumo-success-tint: var(--kumo-success-tint);
+  --color-kumo-warning: var(--kumo-warning);
+  --color-kumo-warning-tint: var(--kumo-warning-tint);
+  --color-kumo-danger: var(--kumo-danger);
+  --color-kumo-danger-tint: var(--kumo-danger-tint);
+
+  --radius-kumo-sm: var(--kumo-radius-sm);
+  --radius-kumo-md: var(--kumo-radius-md);
+  --radius-kumo-card: var(--kumo-radius-card);
+  --radius-kumo-pill: var(--kumo-radius-pill);
+
+  --font-sans: var(--kumo-font-sans);
+  --font-mono: var(--kumo-font-mono);
+}

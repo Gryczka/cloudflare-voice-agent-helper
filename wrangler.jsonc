@@ -1,0 +1,46 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cloudflare-voice-agent-helper",
+  "compatibility_date": "2025-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "main": "src/server/index.ts",
+  "observability": {
+    "enabled": true,
+  },
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application",
+  },
+  "limits": {
+    "cpu_ms": 300000,
+  },
+  "ratelimits": [
+    {
+      "name": "WS_RATE_LIMITER",
+      "namespace_id": "1001",
+      // 5 new WebSocket connections per IP per 60s — a coarse abuse
+      // backstop for the public demo, not a precise per-user quota.
+      "simple": {
+        "limit": 5,
+        "period": 60,
+      },
+    },
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "HELPER_AGENT",
+        "class_name": "HelperAgent",
+      },
+    ],
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["HelperAgent"],
+    },
+  ],
+  "ai": {
+    "binding": "AI",
+  },
+}

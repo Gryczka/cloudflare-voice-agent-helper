@@ -1,0 +1,7 @@
+@import "./kumo-tokens.css";
+
+body {
+  font-family: var(--kumo-font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
