@@ -1,5 +1,6 @@
 # Voice Agent Helper
 
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Gryczka/cloudflare-voice-agent-helper)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 > A real-time voice coaching demo built on Cloudflare Workers, Durable
