@@ -39,6 +39,8 @@ all on Cloudflare's edge. Built with the
 
 ## Architecture
 
+![Voice Agent Helper Cloudflare architecture](docs/architecture-tile-dark.png)
+
 ```mermaid
 graph LR
     Browser["Browser<br/>React SPA"]
