@@ -5,25 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Voice Agent Helper</title>
-    <script>
-      // Prevent dark-mode flash: apply the saved/system theme before paint.
-      (function () {
-        try {
-          var stored = localStorage.getItem("theme");
-          var prefersDark = window.matchMedia(
-            "(prefers-color-scheme: dark)"
-          ).matches;
-          if (stored === "dark" || (!stored && prefersDark)) {
-            document.documentElement.classList.add("dark");
-          }
-        } catch (e) {
-          /* localStorage may be unavailable (private mode); ignore. */
-        }
-      })();
-    </script>
+    <meta
+      name="description"
+      content="Explore real-time voice coaching with Cloudflare Agents and Workers AI: streaming transcription, concise coaching, and bounded public calls."
+    />
+    <link
+      rel="canonical"
+      href="https://voice-agent-helper.dwarven.workers.dev/"
+    />
+    <script src="/theme.js"></script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <main>
+        <h1>Voice Agent Helper</h1>
+        <p>
+          Real-time voice coaching powered by Cloudflare Agents and Workers AI.
+          Choose a coaching persona and start a bounded microphone session to
+          explore streaming transcription and concise feedback.
+        </p>
+        <p>
+          Microphone access is requested only when you start a call. Public call
+          allowances are limited; no recording is required to read this page.
+        </p>
+        <a
+          href="https://developers.cloudflare.com/agents/?utm_source=gryczka.dev&amp;utm_medium=referral&amp;utm_campaign=app-garden&amp;utm_content=demo-resource&amp;utm_term=agents"
+          >Explore Cloudflare Agents</a
+        >
+      </main>
+    </div>
     <script type="module" src="/src/client/main.tsx"></script>
   </body>
 </html>

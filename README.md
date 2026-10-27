@@ -228,16 +228,25 @@ displays them verbatim), so the two can never drift.
 
 ## Cost guards
 
-Three quotas bound worst-case Workers AI spend from a single caller,
-configured in `src/shared/config.ts` (`QUOTA_CONFIG`):
+Four layers bound worst-case Workers AI spend. Per-call quotas are configured
+in `src/shared/config.ts` (`QUOTA_CONFIG`):
 
-1. **Connection rate limit** — a native Workers [Rate Limiting binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/) gates new WebSocket upgrades in `src/server/index.ts`, keyed by `cf-connecting-ip`, before the request ever reaches the Durable Object. This is a coarse abuse backstop, not a precise per-user fairness guarantee — the docs advise against IP-based keys for that reason, but for an unauthenticated public demo it's the only actor signal available.
+1. **Connection rate limit** — a native Workers [Rate Limiting binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/) gates call issuance and WebSocket upgrades in `src/server/index.ts`, keyed by `cf-connecting-ip`, before any Durable Object work. This is a coarse abuse backstop, not a precise per-user fairness guarantee — the docs advise against IP-based keys for that reason, but for an unauthenticated public demo it's the only actor signal available. Limiter errors fail closed.
 2. **Max session duration** — `HelperAgent` schedules a one-shot task on call start that auto-ends the call once it exceeds `QUOTA_CONFIG.maxSessionSeconds`.
 3. **Max LLM calls per session** — once a session's coaching calls hit `QUOTA_CONFIG.maxLlmCallsPerSession`, further LLM calls are skipped (transcription keeps running) and the client receives a one-time notice.
+4. **Call admission** — `POST /api/call` asks the global `CallAdmission` Durable Object (`src/server/CallAdmission.ts`) for a random room and a separate HttpOnly capability cookie. Only same-origin WebSocket upgrades for a registered, unexpired room with a matching capability reach the Agents router, so arbitrary names never become agent instances. Persistent daily caps (200 calls, 10 per IP, 10,000 LLM calls, 72,000 audio seconds, and 600 STT starts) survive reconnects and restarts. Audio is charged in short leases before it is forwarded to Workers AI, and a room's allowances never reset on reconnect.
 
 Both quota events are typed `notice` messages in `src/shared/messages.ts`,
 and the Detail tab shows the exact configured values alongside live STT/LLM
 latency for the current call.
+
+Worker and static-asset responses share one security-header policy
+(`src/server/security-headers.ts` and `public/_headers`): a strict CSP without
+inline scripts, `nosniff`, a strict referrer policy, HSTS, and frame denial.
+
+The hosted demo builds with `GARDEN_PRODUCTION_PREFLIGHT=1`, which selects an
+untracked owner config containing its account and Worker name. Deployments from
+this repository use `wrangler.jsonc` and need no extra configuration.
 
 ## Limitations
 

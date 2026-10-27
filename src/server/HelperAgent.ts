@@ -55,8 +55,8 @@
  * This agent uses WebSocket Hibernation — when the connection is idle the
  * Durable Object can be evicted from memory while keeping the WebSocket
  * alive. The Agents SDK handles rehydration automatically. Per-call state
- * (`#feedbackHistory`, `#isActive`, quota counters) is reset on each new
- * connection via {@link onConnect}.
+ * (`#feedbackHistory`, `#isActive`) is in memory; cost allowances live in
+ * CallAdmission storage and never reset on connection or isolate restart.
  *
  * @module server/HelperAgent
  */
@@ -66,7 +66,7 @@ import {
   withVoiceInput,
   type Transcriber,
 } from "@cloudflare/voice";
-import { LLM_CONFIG, QUOTA_CONFIG, STT_CONFIG } from "../shared/config";
+import { LLM_CONFIG, STT_CONFIG } from "../shared/config";
 import {
   FeedbackKind,
   MessageType,
@@ -81,6 +81,7 @@ import {
   type StatusMessage,
 } from "../shared/messages";
 import { PERSONAS } from "./personas";
+import { AudioAllowance } from "./audio-allowance";
 
 /** Base Agent class augmented with voice-input (STT) capabilities. */
 const InputAgent = withVoiceInput(Agent);
@@ -104,6 +105,66 @@ function toLatencyStats(acc: LatencyAccumulator): LatencyStats | null {
 }
 
 export class HelperAgent extends InputAgent<Env> {
+  #audioAllowance: AudioAllowance;
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+    this.#audioAllowance = new AudioAllowance(() =>
+      this.env.CALL_ADMISSION.getByName("global-v1").reserveAudio(this.name)
+    );
+    // The mixin handles binary messages before subclass hooks; wrap its installed
+    // handler here to reserve audio before its buffers/provider see the data.
+    const voiceMessage = this.onMessage.bind(this);
+    let pending = 0;
+    this.onMessage = async (connection, message) => {
+      if (message instanceof ArrayBuffer) {
+        if (
+          !this.#isActive ||
+          !(await this.#audioAllowance.forward(message.byteLength, () => {
+            if (this.#isActive) return voiceMessage(connection, message);
+          }))
+        ) {
+          await this.onCallEnd(connection);
+          connection.close(1008, "Audio allowance exhausted");
+        }
+        return;
+      }
+      if (++pending > 4) {
+        pending--;
+        connection.close(1008, "Audio backpressure limit");
+        return;
+      }
+      try {
+        if (typeof message !== "string" || message.length > 4096) {
+          connection.close(1008, "Invalid voice message");
+          return;
+        }
+        await voiceMessage(connection, message);
+      } finally {
+        pending--;
+      }
+    };
+  }
+
+  async beforeCallStart(connection: Connection): Promise<boolean> {
+    if (
+      !(await this.env.CALL_ADMISSION.getByName("global-v1").consume(
+        this.name,
+        "starts"
+      ))
+    ) {
+      connection.close(1008, "Call allowance exhausted");
+      return false;
+    }
+    return true;
+  }
+
+  async onClose(connection: Connection, code?: number) {
+    // A Close frame without a status is reported as 1005. Partyserver skips
+    // reserved codes, but this frame still needs an acknowledgement. Never
+    // echo 1005 on the wire; reply with normal closure before async cleanup.
+    if (code === 1005) connection.close(1000, "");
+    await this.onCallEnd(connection);
+  }
   /** Streaming speech-to-text transcriber backed by Workers AI Nova-3. */
   transcriber = new WorkersAINova3STT(this.env.AI, {
     language: STT_CONFIG.language,
@@ -122,9 +183,6 @@ export class HelperAgent extends InputAgent<Env> {
 
   /** Whether a call is currently active (controls rolling-analysis gating). */
   #isActive = false;
-
-  /** Number of LLM coaching calls made so far this session. */
-  #llmCalls = 0;
 
   /** Whether the {@link NoticeCode.LLM_LIMIT} notice has already been sent. */
   #llmLimitNotified = false;
@@ -146,20 +204,18 @@ export class HelperAgent extends InputAgent<Env> {
   /**
    * Called when a new WebSocket connection is established.
    * Reads the persona from the `?persona=` query param and resets per-call
-   * state, including quota counters and latency stats.
+   * presentation state and latency stats. Durable quotas are never reset.
    */
   async onConnect(connection: Connection, ctx: { request: Request }) {
     const url = new URL(ctx.request.url);
     const personaParam = url.searchParams.get("persona");
-    if (personaParam && PERSONAS[personaParam]) {
+    if (personaParam && Object.hasOwn(PERSONAS, personaParam)) {
       this.#personaId = personaParam;
     }
 
     this.#feedbackHistory = [];
-    this.#isActive = true;
-    this.#llmCalls = 0;
+    this.#isActive = false;
     this.#llmLimitNotified = false;
-    this.#sessionScheduleId = null;
     this.#llmLatency = newLatencyAccumulator();
     this.#sttLatency = newLatencyAccumulator();
 
@@ -209,6 +265,7 @@ export class HelperAgent extends InputAgent<Env> {
    * the max-session-duration quota timer.
    */
   async onCallStart(connection: Connection) {
+    await this.onCallEnd(connection);
     this.#isActive = true;
     this.#send(connection, {
       type: MessageType.STATUS,
@@ -222,8 +279,11 @@ export class HelperAgent extends InputAgent<Env> {
       connection.id
     );
 
+    const deadline = await this.env.CALL_ADMISSION.getByName(
+      "global-v1"
+    ).deadline(this.name);
     const sessionSchedule = await this.schedule(
-      QUOTA_CONFIG.maxSessionSeconds,
+      Math.max(1, Math.ceil((deadline - Date.now()) / 1000)),
       "endSession",
       connection.id
     );
@@ -234,8 +294,16 @@ export class HelperAgent extends InputAgent<Env> {
    * Called when the voice call ends. Stops coaching and cancels the
    * pending max-session-duration quota timer, if any.
    */
-  async onCallEnd(_connection: Connection) {
+  async onCallEnd(_connection?: Connection) {
     this.#isActive = false;
+    this.#audioAllowance.reset();
+    for (const schedule of this.getSchedules()) {
+      if (
+        schedule.callback === "rollingAnalysis" ||
+        schedule.callback === "endSession"
+      )
+        await this.cancelSchedule(schedule.id);
+    }
     if (this.#sessionScheduleId) {
       await this.cancelSchedule(this.#sessionScheduleId);
       this.#sessionScheduleId = null;
@@ -247,20 +315,20 @@ export class HelperAgent extends InputAgent<Env> {
    * `QUOTA_CONFIG.maxSessionSeconds`. Scheduled once in {@link onCallStart}.
    */
   async endSession(connectionId: string) {
-    if (!this.#isActive) return;
-
     const connection = [...this.getConnections()].find(
       (conn) => conn.id === connectionId
     );
-    if (!connection) return;
+    if (!connection) {
+      await this.onCallEnd();
+      return;
+    }
 
     this.#sendNotice(
       connection,
       NoticeCode.SESSION_LIMIT,
       "This demo session reached its maximum length and has ended."
     );
-    this.#isActive = false;
-    this.#sessionScheduleId = null;
+    await this.onCallEnd(connection);
     connection.close();
   }
 
@@ -270,7 +338,10 @@ export class HelperAgent extends InputAgent<Env> {
    * method generates a per-utterance coaching suggestion via the LLM.
    */
   async onTranscript(text: string, connection: Connection) {
-    if (!text.trim()) return;
+    if (!this.#isActive || !text.trim()) return;
+    text = text.slice(0, 2000);
+    this.#feedbackHistory.push({ role: "user", content: text });
+    this.#feedbackHistory = this.#feedbackHistory.slice(-12);
     await this.#coach(text, connection);
   }
 
@@ -291,12 +362,18 @@ export class HelperAgent extends InputAgent<Env> {
    * Skipped when the call is inactive or there isn't enough context yet.
    */
   async rollingAnalysis(connectionId: string) {
-    if (!this.#isActive) return;
+    if (!this.#isActive) {
+      await this.onCallEnd();
+      return;
+    }
 
     const connection = [...this.getConnections()].find(
       (conn) => conn.id === connectionId
     );
-    if (!connection) return;
+    if (!connection) {
+      await this.onCallEnd();
+      return;
+    }
 
     const recent = this.#feedbackHistory.slice(-6);
     if (recent.length < 2) return;
@@ -345,7 +422,13 @@ export class HelperAgent extends InputAgent<Env> {
     prompt: string,
     connection: Connection
   ): Promise<string | null> {
-    if (this.#llmCalls >= QUOTA_CONFIG.maxLlmCallsPerSession) {
+    if (
+      !this.#isActive ||
+      !(await this.env.CALL_ADMISSION.getByName("global-v1").consume(
+        this.name,
+        "llm"
+      ))
+    ) {
       if (!this.#llmLimitNotified) {
         this.#llmLimitNotified = true;
         this.#sendNotice(
@@ -358,7 +441,6 @@ export class HelperAgent extends InputAgent<Env> {
       return null;
     }
 
-    this.#llmCalls++;
     const startedAt = Date.now();
     try {
       const response = (await this.env.AI.run(LLM_CONFIG.model, {
@@ -370,6 +452,7 @@ export class HelperAgent extends InputAgent<Env> {
           },
           { role: "user", content: prompt },
         ],
+        max_tokens: 256,
       })) as { response?: string };
 
       this.#recordLatency("llm", Date.now() - startedAt);
@@ -379,6 +462,7 @@ export class HelperAgent extends InputAgent<Env> {
       if (!text) return null;
 
       this.#feedbackHistory.push({ role: "assistant", content: text });
+      this.#feedbackHistory = this.#feedbackHistory.slice(-12);
       return text;
     } catch (err) {
       console.error("LLM coaching error:", err);

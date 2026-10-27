@@ -101,9 +101,18 @@ export function useVoiceHelper(persona: PersonaId) {
     setMetrics(null);
     setStatus("connecting");
 
+    const admission = await fetch("/api/call", { method: "POST" });
+    if (!admission.ok) {
+      setError(
+        "The public demo's call allowance is unavailable. Please try later."
+      );
+      setStatus("error");
+      return;
+    }
+    const { room } = (await admission.json()) as { room: string };
     const client = new VoiceClient({
       agent: "HelperAgent",
-      name: "default",
+      name: room,
       query: { persona },
     });
 

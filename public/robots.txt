@@ -1,0 +1,6 @@
+User-agent: *
+Content-Signal: search=yes,ai-input=yes,ai-train=no
+Allow: /
+Disallow: /agents/
+Disallow: /api/call
+Sitemap: https://voice-agent-helper.dwarven.workers.dev/sitemap.xml

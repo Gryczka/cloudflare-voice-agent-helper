@@ -530,6 +530,15 @@ export function ArchitecturePanel() {
           Object, which orchestrates Workers AI for transcription and coaching,
           then streams results back in real time.
         </p>
+        <p className="mt-2 text-sm text-kumo-text-muted">
+          <a href="https://developers.cloudflare.com/agents/?utm_source=gryczka.dev&utm_medium=referral&utm_campaign=app-garden&utm_content=demo-resource&utm_term=agents">
+            Agents SDK documentation
+          </a>
+          {" · "}
+          <a href="https://developers.cloudflare.com/workers-ai/?utm_source=gryczka.dev&utm_medium=referral&utm_campaign=app-garden&utm_content=demo-resource&utm_term=workers-ai">
+            Workers AI documentation
+          </a>
+        </p>
 
         <div className="mt-5 flex items-center gap-5 text-xs text-kumo-text-muted">
           <span className="flex items-center gap-1.5">
